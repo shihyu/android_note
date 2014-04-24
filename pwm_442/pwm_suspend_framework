@@ -241,6 +241,7 @@ public boolean animateTo(int target, int rate, int buttonValue, int duration, in
     postCallback();
 }
 
+// Resume 過程會調用多次 postCallback 讓螢幕慢慢亮起來
 private void postCallback() {
     mChoreographer.postCallback(Choreographer.CALLBACK_ANIMATION, mCallback, null);  // 註冊到 Choreographer queue
 }
