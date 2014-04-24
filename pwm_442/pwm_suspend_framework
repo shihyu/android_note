@@ -1,0 +1,249 @@
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.DisplayPowerController.sendUpdatePowerStateLocked(DisplayPowerController.java:701)
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.DisplayPowerController.requestPowerState(DisplayPowerController.java:669)
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.updateDisplayPowerStateLocked(PowerManagerService.java:3809)
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.updatePowerStateLocked(PowerManagerService.java:2756)
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.goToSleepInternal(PowerManagerService.java:2587)
+04-24 07:46:03.067   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.goToSleepFromNative(PowerManagerService.java:2579)
+
+
+private void goToSleepFromNative(long eventTime, int reason) {
+    goToSleepInternal(eventTime, reason);
+}
+
+private void goToSleepInternal(long eventTime, int reason) {
+    if (goToSleepNoUpdateLocked(eventTime, reason)) {
+        updatePowerStateLocked();
+    }
+}
+
+private void updatePowerStateLocked() {
+    updateDisplayPowerStateLocked(dirtyPhase2);
+}
+
+private void updateDisplayPowerStateLocked(int dirty) {
+    mDisplayReady = mDisplayPowerController.requestPowerState(mDisplayPowerRequest, mRequestWaitForNegativeProximity);
+}
+
+public boolean requestPowerState(DisplayPowerRequest request, boolean waitForNegativeProximity) { 
+    if (changed && !mPendingRequestChangedLocked) {
+        mPendingRequestChangedLocked = true;
+        sendUpdatePowerStateLocked();
+    }
+}
+
+private void sendUpdatePowerStateLocked() {
+    if (!mPendingUpdatePowerStateLocked) {
+        mPendingUpdatePowerStateLocked = true;
+        Message msg = mHandler.obtainMessage(MSG_UPDATE_POWER_STATE);
+        msg.setAsynchronous(true);
+        mHandler.sendMessage(msg);
+    }
+}
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+115 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.RampAnimator.postCallback(RampAnimator.java:218)
+116 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:191)
+117 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:85)
+118 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.DisplayPowerController.animateScreenBrightness(DisplayPowerController.java:1248)
+119 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.DisplayPowerController.updatePowerState(DisplayPowerController.java:1100)
+120 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.DisplayPowerController.access$600(DisplayPowerController.java:77)
+121 04-24 06:32:49.160   963  1041 D callstacktest:     at com.android.server.power.DisplayPowerController$DisplayControllerHandler.handleMessage(DisplayPowerController.java:1972)
+
+
+public void handleMessage(Message msg) {
+    switch (msg.what) {
+    case MSG_UPDATE_POWER_STATE:
+        updatePowerState();
+        break;
+    }
+}
+
+private void updatePowerState() {
+    animateScreenBrightness(0, 0, 0, -1);
+}
+
+private void animateScreenBrightness(int target, int rate, int buttonValue, int duration) {
+    if (mScreenBrightnessRampAnimator.animateTo(target, rate, buttonValue, duration)) {
+    }
+}
+
+public boolean animateTo(int target, int rate, int buttonValue, int duration) {
+    return animateTo(target, rate, buttonValue, duration, BRIGHTNESS_NONE_MODE);
+}
+
+public boolean animateTo(int target, int rate, int buttonValue, int duration, int mode) {
+    postCallback();
+}
+
+private void postCallback() {
+    mChoreographer.postCallback(Choreographer.CALLBACK_ANIMATION, mCallback, null);  // 註冊到 Choreographer queue
+}
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#RampAnimator.java
+private final Runnable mCallback = new Runnable() {
+    @Override // Choreographer callback
+    // 收到 Choreographer doCallbacks 會callback 到這
+    public void run() {
+        mProperty.setValue(mObject, mCurrentValue);  // call DisplayPowerState setValue
+    }
+}
+
+#DisplayPowerState.java
+public static final IntProperty<DisplayPowerState> SCREEN_BRIGHTNESS =
+        new IntProperty<DisplayPowerState>("screenBrightness") {
+    @Override
+    public void setValue(DisplayPowerState object, int value) {
+        object.setScreenBrightness(value);
+    }
+};
+
+public void setScreenBrightness(int brightness) {
+    scheduleScreenUpdate();
+}
+
+private void scheduleScreenUpdate() {
+    postScreenUpdateThreadSafe();
+}
+
+private void postScreenUpdateThreadSafe() {
+    mHandler.removeCallbacks(mScreenUpdateRunnable);
+    mHandler.post(mScreenUpdateRunnable);
+}
+
+private final Runnable mScreenUpdateRunnable = new Runnable() {
+    // 收到後跑run
+    public void run() {
+        if (mPhotonicModulator.setState(mScreenOn, brightness)) {
+            mScreenReady = true;
+            invokeCleanListenerIfNeeded();
+        }
+    }
+};
+
+public boolean setState(boolean on, int backlight) {
+    AsyncTask.THREAD_POOL_EXECUTOR.execute(mTask);
+}
+
+private final Runnable mTask = new Runnable() {
+    @Override
+    public void run() {
+        mBacklight.setBrightness(backlight);
+        mButtonLight.setBrightness(brightness); 
+    }
+};
+
+#DisplayPowerState.java
+setScreenBrightness-->scheduleScreenUpdate-->postScreenUpdateThreadSafe-->mScreenUpdateRunnable-->mTask
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#LightsService.java
+public void setBrightness(int brightness) {
+    setBrightness(brightness, BRIGHTNESS_MODE_USER);
+}
+
+public void setBrightness(int brightness, int brightnessMode) {
+    setLightLocked(color, LIGHT_FLASH_NONE, 0, 0, brightnessMode);
+}
+
+private void setLightLocked(int color, int mode, int onMS, int offMS, int brightnessMode) {
+    setLight_native(mNativePointer, mId, color, mode, onMS, offMS, brightnessMode);
+}
+
+LightsService.java: -->setLightLocked-->setLight_native
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+================================================================================ Resume =======================================================================
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.DisplayPowerController.sendUpdatePowerStateLocked(DisplayPowerController.java:701)
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.DisplayPowerController.requestPowerState(DisplayPowerController.java:669)
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.updateDisplayPowerStateLocked(PowerManagerService.java:3809)
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.updatePowerStateLocked(PowerManagerService.java:2756)
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.wakeUpInternal(PowerManagerService.java:2426)
+04-24 08:44:50.001   956  1039 D callstacktest:     at com.android.server.power.PowerManagerService.wakeUpFromNative(PowerManagerService.java:2418)
+04-24 08:44:50.001   956  1039 D callstacktest:     at dalvik.system.NativeStart.run(Native Method)
+
+// Called from native code.
+private void wakeUpFromNative(long eventTime) {
+    wakeUpInternal(eventTime); 
+}
+
+private void wakeUpInternal(long eventTime) {
+    if (wakeUpNoUpdateLocked(eventTime)) {
+        updatePowerStateLocked();
+    }
+}
+
+private void updatePowerStateLocked() {
+    updateDisplayPowerStateLocked(dirtyPhase2);
+}
+
+private void updateDisplayPowerStateLocked(int dirty) {
+    mDisplayReady = mDisplayPowerController.requestPowerState(mDisplayPowerRequest, mRequestWaitForNegativeProximity);
+}
+
+public boolean requestPowerState(DisplayPowerRequest request, boolean waitForNegativeProximity) { 
+    if (changed && !mPendingRequestChangedLocked) {
+        mPendingRequestChangedLocked = true;
+        sendUpdatePowerStateLocked();
+    }
+}
+
+private void sendUpdatePowerStateLocked() {
+    if (!mPendingUpdatePowerStateLocked) {
+        mPendingUpdatePowerStateLocked = true;
+        Message msg = mHandler.obtainMessage(MSG_UPDATE_POWER_STATE);
+        msg.setAsynchronous(true);
+        mHandler.sendMessage(msg);
+    }
+}
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.RampAnimator.postCallback(RampAnimator.java:218)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:191)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:85)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.DisplayPowerController.animateScreenBrightness(DisplayPowerController.java:1249)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.DisplayPowerController.updatePowerState(DisplayPowerController.java:1018)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.DisplayPowerController.access$600(DisplayPowerController.java:77)
+04-24 08:44:50.271   956  1028 D callstacktest:     at com.android.server.power.DisplayPowerController$DisplayControllerHandler.handleMessage(DisplayPowerController.java:1973)
+04-24 08:44:50.271   956  1028 D callstacktest:     at android.os.Handler.dispatchMessage(Handler.java:102)
+04-24 08:44:50.271   956  1028 D callstacktest:     at android.os.Looper.loop(Looper.java:157)
+04-24 08:44:50.271   956  1028 D callstacktest:     at android.os.HandlerThread.run(HandlerThread.java:61)
+
+public void handleMessage(Message msg) {
+    switch (msg.what) {
+    case MSG_UPDATE_POWER_STATE:
+        updatePowerState();
+        break;
+    }
+}
+
+private void updatePowerState() {
+    if (curValue <= newTarget) {
+        // 跟 suspend 代入參數不同 
+        animateScreenBrightness(newTarget, -1, mButtonValue, AUTOBRIGHTNESS_ANIM_DURATION);
+    }
+}
+
+public boolean animateTo(int target, int rate, int buttonValue, int duration) {
+    return animateTo(target, rate, buttonValue, duration, BRIGHTNESS_NONE_MODE);
+}
+
+public boolean animateTo(int target, int rate, int buttonValue, int duration, int mode) {
+    postCallback();
+}
+
+private void postCallback() {
+    mChoreographer.postCallback(Choreographer.CALLBACK_ANIMATION, mCallback, null);  // 註冊到 Choreographer queue
+}
+
+
+
