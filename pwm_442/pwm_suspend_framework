@@ -233,6 +233,11 @@ private void updatePowerState() {
     }
 }
 
+private void animateScreenBrightness(int target, int rate, int buttonValue, int duration) {
+    if (mScreenBrightnessRampAnimator.animateTo(target, rate, buttonValue, duration)) {
+    }
+}
+
 public boolean animateTo(int target, int rate, int buttonValue, int duration) {
     return animateTo(target, rate, buttonValue, duration, BRIGHTNESS_NONE_MODE);
 }
