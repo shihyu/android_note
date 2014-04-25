@@ -246,10 +246,66 @@ public boolean animateTo(int target, int rate, int buttonValue, int duration, in
     postCallback();
 }
 
+
+
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback: java.lang.Throwable
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator.postCallback(RampAnimator.java:218)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:191)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator.animateTo(RampAnimator.java:85)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.DisplayPowerController.animateScreenBrightness(DisplayPowerController.java:1249)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.DisplayPowerController.updatePowerState(DisplayPowerController.java:1011)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.DisplayPowerController.access$600(DisplayPowerController.java:77)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at com.android.server.power.DisplayPowerController$DisplayControllerHandler.handleMessage(DisplayPowerController.java:1974)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at android.os.Handler.dispatchMessage(Handler.java:102)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at android.os.Looper.loop(Looper.java:157)
+04-25 02:53:03.610   957  1029 D callstacktest_postCallback:    at android.os.HandlerThread.run(HandlerThread.java:61)
+// 第一次由 animateScreenBrightness call 進 postCallback , 之後就由下面的 Choreographer callback 回到 postCallback
+
+
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback: java.lang.Throwable
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator.postCallback(RampAnimator.java:218)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator.access$1100(RampAnimator.java:33)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at com.android.server.power.RampAnimator$1.run(RampAnimator.java:343)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.view.Choreographer$CallbackRecord.run(Choreographer.java:799)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.view.Choreographer.doCallbacks(Choreographer.java:599)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.view.Choreographer.doFrame(Choreographer.java:558)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:784)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.os.Handler.handleCallback(Handler.java:733)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.os.Handler.dispatchMessage(Handler.java:95)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.os.Looper.loop(Looper.java:157)
+04-25 02:53:04.411   957  1029 D callstacktest_postCallback:    at android.os.HandlerThread.run(HandlerThread.java:61)
+04-25 02:53:04.411   957  1029 W XAN-RA  : YAO mTargetValue=111 mCurrentValue110
+
 // Resume 過程會調用多次 postCallback 讓螢幕慢慢亮起來
 private void postCallback() {
     mChoreographer.postCallback(Choreographer.CALLBACK_ANIMATION, mCallback, null);  // 註冊到 Choreographer queue
 }
 
 
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+#RampAnimator.java
+private final Runnable mCallback = new Runnable() {
+    @Override // Choreographer callback
+    // 收到 Choreographer doCallbacks 會callback 到這
+    public void run() {
+            /*
+            螢幕由暗到亮起來檢查mTargetValue != mCurrentValue 不斷call postCallback 直到兩個數值相等
+            mTargetValue=111 mCurrentValue102
+            mTargetValue=111 mCurrentValue102
+            mTargetValue=111 mCurrentValue105
+            mTargetValue=111 mCurrentValue106
+            mTargetValue=111 mCurrentValue106
+            mTargetValue=111 mCurrentValue107
+            mTargetValue=111 mCurrentValue107
+            mTargetValue=111 mCurrentValue109
+            mTargetValue=111 mCurrentValue110
+            mTargetValue=111 mCurrentValue110
+            mTargetValue=111 mCurrentValue110
+            */
+
+            if (mTargetValue != mCurrentValue) {
+                postCallback();
+        }
+    }
+}
